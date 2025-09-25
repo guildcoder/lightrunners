@@ -21,7 +21,6 @@ canvas { display:block; background:#0f0f0f; }
 </head>
 <body>
 
-<!-- Main Menu -->
 <div class="menu" id="mainMenu">
   <h1>L I G H T R U N N E R S</h1>
   <input type="text" id="username" placeholder="Username">
@@ -32,7 +31,6 @@ canvas { display:block; background:#0f0f0f; }
   <button id="playBtn">Play</button>
 </div>
 
-<!-- Pause Menu -->
 <div class="pauseMenu" id="pauseMenu">
   <h2>PAUSED</h2>
   <p>Controls:</p>
@@ -49,7 +47,6 @@ canvas { display:block; background:#0f0f0f; }
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// --- UI Elements ---
 const mainMenu = document.getElementById('mainMenu');
 const pauseMenu = document.getElementById('pauseMenu');
 const loginBtn = document.getElementById('loginBtn');
@@ -62,52 +59,17 @@ const color1Input = document.getElementById('color1');
 const color2Input = document.getElementById('color2');
 
 let paused = false;
-
-// --- Keyboard ---
 const keys = {};
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()]=false);
-document.addEventListener('keydown', e => { if(e.key==='Escape') togglePause(); });
+document.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()]=true; });
+document.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') togglePause();
+  if(e.key.toLowerCase()==='r') toggleBike();
+});
 
-// --- Mobile buttons ---
-const joystick = document.createElement('div');
-joystick.style.cssText="position:absolute;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.2);bottom:30px;left:30px;";
-document.body.appendChild(joystick);
-const fireButton = document.createElement('div');
-fireButton.style.cssText="position:absolute;width:80px;height:80px;border-radius:50%;background:rgba(255,0,0,0.3);bottom:40px;right:30px;";
-document.body.appendChild(fireButton);
-const mountButton = document.createElement('div');
-mountButton.style.cssText="position:absolute;width:120px;height:50px;border-radius:10px;background:rgba(0,255,255,0.3);bottom:150px;right:30px;color:white;text-align:center;line-height:50px;font-weight:bold;cursor:pointer;";
-mountButton.textContent="Get In/Out";
-document.body.appendChild(mountButton);
-
-let touchDir={x:0,y:0};
-joystick.addEventListener('touchstart',handleTouch);
-joystick.addEventListener('touchmove',handleTouch);
-joystick.addEventListener('touchend',()=>touchDir={x:0,y:0});
-fireButton.addEventListener('touchstart',()=>firePressed=true);
-fireButton.addEventListener('touchend',()=>firePressed=false);
-mountButton.addEventListener('touchstart',toggleBike);
-
-function handleTouch(e){
-  const touch=e.touches[0];
-  const rect=joystick.getBoundingClientRect();
-  const cx=rect.left+rect.width/2;
-  const cy=rect.top+rect.height/2;
-  touchDir.x=Math.max(-1,Math.min(1,(touch.clientX-cx)/60));
-  touchDir.y=Math.max(-1,Math.min(1,(touch.clientY-cy)/60));
-  e.preventDefault();
-}
-
-// --- Player & Bike ---
 const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2, alive:true, colors:['#00ffff','#ff00ff'] };
 const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
-
-// --- Discs ---
 const discs = [];
-let firePressed=false;
-
-// --- Bots ---
 const bots = [];
 const copBikes = [];
 
@@ -125,7 +87,6 @@ function spawnBot(x,y){
 }
 for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
 
-// --- Menu Actions ---
 loginBtn.addEventListener('click',()=>{
   const username=usernameInput.value;
   const pin=pinInput.value;
@@ -150,16 +111,10 @@ playBtn.addEventListener('click',()=>{
 });
 
 resumeBtn.addEventListener('click',()=>{ paused=false; pauseMenu.style.display='none'; });
-quitBtn.addEventListener('click',()=>{
-  paused=false; pauseMenu.style.display='none';
-  mainMenu.style.display='flex';
-  resetGame();
-});
+quitBtn.addEventListener('click',()=>{ paused=false; pauseMenu.style.display='none'; mainMenu.style.display='flex'; resetGame(); });
 
-// --- Game Logic ---
 function togglePause(){ paused=!paused; pauseMenu.style.display=paused?'flex':'none'; }
-
-function toggleBike(){ if(!player.alive) return; player.onBike=!player.onBike; bike.mounted=player.onBike; if(bike.mounted){ bike.x=player.x; bike.y=player.y; } }
+function toggleBike(){ if(!player.alive) return; player.onBike=!player.onBike; bike.mounted=player.onBike; if(bike.mounted){ bike.x=player.x; bike.y=player.y; bike.trail=[]; } }
 
 function resetGame(){
   player.x=500; player.y=500; player.alive=true; player.onBike=false; bike.mounted=false; bike.trail=[];
@@ -167,7 +122,6 @@ function resetGame(){
   discs.length=0;
 }
 
-// --- Updates & Drawing ---
 function drawGrid(camX,camY){
   const gridSize=50; ctx.strokeStyle='rgba(0,255,255,0.1)'; ctx.lineWidth=1;
   for(let x=-camX%gridSize;x<canvas.width;x+=gridSize){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
@@ -181,16 +135,12 @@ function updatePlayer(){
   if(keys['s']||keys['arrowdown']){ player.y+=spd; player.direction=Math.PI/2; }
   if(keys['a']||keys['arrowleft']){ player.x-=spd; player.direction=Math.PI; }
   if(keys['d']||keys['arrowright']){ player.x+=spd; player.direction=0; }
-  player.x += touchDir.x*spd; player.y += touchDir.y*spd;
-  if(touchDir.x!==0||touchDir.y!==0) player.direction=Math.atan2(touchDir.y,touchDir.x);
 
   if(player.onBike){
     bike.x=player.x; bike.y=player.y;
-    bike.trail.push({x:bike.x,y:bike.y,time:Date.now()});
+    bike.trail.push({x:bike.x, y:bike.y, time:Date.now()});
     bike.trail=bike.trail.filter(t=>Date.now()-t.time<3000);
   }
-
-  if(firePressed && player.onBike){ discs.push({x:bike.x,y:bike.y,angle:player.direction,speed:8,time:Date.now()}); firePressed=false; }
 }
 
 function updateBots(){
@@ -198,22 +148,32 @@ function updateBots(){
     bot.x+=bot.vx; bot.y+=bot.vy;
     if(bot.x<0||bot.x+bot.width>2000) bot.vx*=-1;
     if(bot.y<0||bot.y+bot.height>2000) bot.vy*=-1;
-
-    // Randomly mount bike
-    if(!bot.bike.mounted && Math.random()<0.001){ bot.bike.mounted=true; bot.bike.x=bot.x; bot.bike.y=bot.y; }
+    if(!bot.bike.mounted && Math.random()<0.001){ bot.bike.mounted=true; bot.bike.x=bot.x; bot.bike.y=bot.y; bot.bike.trail=[]; }
     if(bot.bike.mounted){
       bot.bike.x=bot.x; bot.bike.y=bot.y;
-      bot.bike.trail.push({x:bot.bike.x,y:bot.bike.y,time:Date.now()});
-      bot.bike.trail=bot.bike.trail.filter(t=>Date.now()-t.time<3000);
+      bot.bike.trail.push({x:bot.bike.x, y:bot.bike.y, time:Date.now()});
+      bot.bike.trail = bot.bike.trail.filter(t=>Date.now()-t.time<3000);
     }
   });
 }
 
-function updateDiscs(){
-  for(let i=discs.length-1;i>=0;i--){
-    const d=discs[i]; d.x+=Math.cos(d.angle)*d.speed; d.y+=Math.sin(d.angle)*d.speed;
-    if(Date.now()-d.time>3000) discs.splice(i,1);
-  }
+function spawnCopBike(x,y){
+  copBikes.push({x:x,y:y,width:40,height:20,speed:3,trail:[],colors:['#00f','#f00']});
+}
+
+function updateCops(){
+  copBikes.forEach(cop=>{
+    const dx = player.x - cop.x;
+    const dy = player.y - cop.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const speed = cop.speed;
+    if(dist > 1){
+      cop.x += (dx/dist)*speed;
+      cop.y += (dy/dist)*speed;
+      cop.trail.push({x:cop.x, y:cop.y, time:Date.now()});
+      cop.trail = cop.trail.filter(t=>Date.now()-t.time<3000);
+    }
+  });
 }
 
 function checkCollisions(){
@@ -227,21 +187,46 @@ function checkCollisions(){
   });
 }
 
-function spawnCopBike(x,y){
-  copBikes.push({x:x,y:y,width:40,height:20,speed:3,trail:[],colors:['#00f','#f00']});
+function checkTrailCollisions(){
+  if(!player.alive || !player.onBike) return;
+
+  // Cop trails
+  copBikes.forEach(cop=>{
+    cop.trail.forEach(t=>{
+      if(Math.abs(player.x - t.x) < 10 && Math.abs(player.y - t.y) < 10){
+        player.alive = false; setTimeout(resetGame,1000);
+      }
+    });
+  });
+
+  // Bot trails
+  bots.forEach(bot=>{
+    if(bot.bike.mounted){
+      bot.bike.trail.forEach(t=>{
+        if(Math.abs(player.x - t.x) < 10 && Math.abs(player.y - t.y) < 10){
+          player.alive = false; spawnCopBike(bot.bike.x,bot.bike.y); setTimeout(resetGame,1000);
+        }
+      });
+    }
+  });
+
+  // Player own trail
+  bike.trail.forEach((t,i)=>{
+    if(Math.abs(player.x - t.x) < 10 && Math.abs(player.y - t.y) < 10 && i < bike.trail.length - 5){
+      player.alive = false; setTimeout(resetGame,1000);
+    }
+  });
 }
 
 function drawCopBike(cop,camX,camY){
-  // Flashing gradient
   const t=(Math.sin(Date.now()/200)*0.5+0.5);
   const grad=ctx.createLinearGradient(cop.x-camX,cop.y-camY,cop.x+cop.width-camX,cop.y+cop.height-camY);
   grad.addColorStop(0, `rgba(${Math.floor(255*t)},0,255,1)`);
   grad.addColorStop(1, `rgba(0,${Math.floor(255*(1-t))},255,1)`);
   ctx.fillStyle=grad; ctx.fillRect(cop.x-camX,cop.y-camY,cop.width,cop.height);
-
   cop.trail.forEach(tl=>{
     const age=(Date.now()-tl.time)/3000; if(age>1) return;
-    ctx.fillStyle=`rgba(0,255,255,${1-age})`;
+    ctx.fillStyle=`rgba(0,0,255,${1-age})`;
     ctx.fillRect(tl.x-camX-5,tl.y-camY-5,10,10);
   });
 }
@@ -250,26 +235,22 @@ function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   const camX=player.x-canvas.width/2;
   const camY=player.y-canvas.height/2;
-
   drawGrid(camX,camY);
 
   // Player
   if(player.alive){
-    const grad=ctx.createLinearGradient(player.x-20-camX,player.y-20-camY,player.x+20-camX,player.y+20-camY);
-    grad.addColorStop(0,player.colors[0]);
-    grad.addColorStop(1,player.colors[1]);
-    ctx.fillStyle=grad; ctx.fillRect(player.x-20-camX,player.y-20-camY,40,40);
+    ctx.fillStyle=player.colors[0];
+    ctx.fillRect(player.x-20-camX,player.y-20-camY,40,40);
   }
-
-  // Player Bike trail
   if(player.onBike){
     bike.trail.forEach(t=>{
       const age=(Date.now()-t.time)/3000;
-      ctx.fillStyle=`rgba(0,255,255,${1-age})`; ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
+      ctx.fillStyle=player.colors[0]; ctx.globalAlpha=1-age;
+      ctx.fillRect(t.x-camX-5, t.y-camY-5, 10, 10);
+      ctx.globalAlpha=1;
     });
-    const grad=ctx.createLinearGradient(bike.x-camX,bike.y-camY,bike.x+bike.width-camX,bike.y+bike.height-camY);
-    grad.addColorStop(0,player.colors[0]); grad.addColorStop(1,player.colors[1]);
-    ctx.fillStyle=grad; ctx.fillRect(bike.x-camX-bike.width/2,bike.y-camY-bike.height/2,bike.width,bike.height);
+    ctx.fillStyle = player.colors[0];
+    ctx.fillRect(bike.x-camX-bike.width/2, bike.y-camY-bike.height/2, bike.width, bike.height);
   }
 
   // Bots
@@ -278,40 +259,35 @@ function draw(){
       ctx.fillStyle='white'; ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height);
       ctx.fillStyle='white'; ctx.font='12px monospace'; ctx.fillText(bot.name, bot.x-camX, bot.y-10-camY);
     } else {
-      // Bot bike
       bot.bike.trail.forEach(t=>{
         const age=(Date.now()-t.time)/3000; if(age>1) return;
-        ctx.fillStyle=`rgba(255,0,255,${1-age})`; ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
+        ctx.fillStyle=bot.bike.colors[0]; ctx.globalAlpha=1-age;
+        ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10); ctx.globalAlpha=1;
       });
-      const grad=ctx.createLinearGradient(bot.bike.x-camX,bot.bike.y-camY,bot.bike.x+bot.bike.width-camX,bot.bike.y+bot.bike.height-camY);
-      grad.addColorStop(0,bot.bike.colors[0]); grad.addColorStop(1,bot.bike.colors[1]);
-      ctx.fillStyle=grad; ctx.fillRect(bot.bike.x-camX,bot.bike.y-camY,bot.bike.width,bot.bike.height);
+      ctx.fillStyle = bot.bike.colors[0];
+      ctx.fillRect(bot.bike.x-camX, bot.bike.y-camY, bot.bike.width, bot.bike.height);
     }
   });
 
   // Cop bikes
   copBikes.forEach(cop=>{
-    cop.trail.push({x:cop.x,y:cop.y,time:Date.now()});
-    cop.trail=cop.trail.filter(t=>Date.now()-t.time<3000);
     drawCopBike(cop,camX,camY);
   });
-
-  // Discs
-  ctx.fillStyle='yellow'; discs.forEach(d=>ctx.fillRect(d.x-camX-5,d.y-camY-5,10,10));
-
-  // Fire instruction
-  ctx.fillStyle='rgba(255,255,0,0.7)'; ctx.font='14px monospace';
-  ctx.fillText('Space = Fire', 10, 20);
-
-  // Pause overlay
-  if(paused){ ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='white';
-    ctx.font='24px monospace'; ctx.fillText('PAUSED',canvas.width/2-50,canvas.height/2-60); }
 }
 
-function gameLoop(){ if(!paused){ updatePlayer(); updateBots(); updateDiscs(); checkCollisions(); } draw(); requestAnimationFrame(gameLoop); }
+function gameLoop(){ 
+  if(!paused){
+    updatePlayer();
+    updateBots();
+    updateCops();
+    checkCollisions();
+    checkTrailCollisions();
+  }
+  draw(); 
+  requestAnimationFrame(gameLoop); 
+}
 
 function startGame(){ gameLoop(); }
-
 </script>
 </body>
 </html>
