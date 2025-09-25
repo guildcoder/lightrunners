@@ -109,17 +109,18 @@ let firePressed=false;
 
 // --- Bots ---
 const bots = [];
-const copBots = [];
+const copBikes = [];
+
+function randomColor(){ const c=['#ff00ff','#0ff','#ff0','#f0f','#0f0','#f00','#0ff','#0f0']; return c[Math.floor(Math.random()*c.length)]; }
+function randomName(){ const n=['ByteRider','NeonPulse','GlitchShadow','LaserFang','CyberStorm','ElectroVex','DataPhantom','SynthWave','PixelKnight','QuantumFlux','BuzzCore']; return n[Math.floor(Math.random()*n.length)]; }
 
 function spawnBot(x,y){
-  const colors = ['#ff00ff','#0ff','#ff0','#f0f','#0f0','#f00','#0ff','#0f0'];
-  const names = ['ByteRider','NeonPulse','GlitchShadow','LaserFang','CyberStorm','ElectroVex','DataPhantom','SynthWave','PixelKnight','QuantumFlux','BuzzCore'];
   bots.push({
     x:x, y:y, width:20, height:30,
     vx:(Math.random()*2-1)*1.5, vy:(Math.random()*2-1)*1.5,
-    color: colors[Math.floor(Math.random()*colors.length)],
-    name: names[Math.floor(Math.random()*names.length)],
-    state:'neutral', aggroTime:0
+    name: randomName(),
+    bike:{mounted:false,width:40,height:20,trail:[],colors:[randomColor(),randomColor()]},
+    state:'neutral'
   });
 }
 for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
@@ -162,7 +163,7 @@ function toggleBike(){ if(!player.alive) return; player.onBike=!player.onBike; b
 
 function resetGame(){
   player.x=500; player.y=500; player.alive=true; player.onBike=false; bike.mounted=false; bike.trail=[];
-  bots.length=0; copBots.length=0; for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
+  bots.length=0; copBikes.length=0; for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
   discs.length=0;
 }
 
@@ -197,6 +198,14 @@ function updateBots(){
     bot.x+=bot.vx; bot.y+=bot.vy;
     if(bot.x<0||bot.x+bot.width>2000) bot.vx*=-1;
     if(bot.y<0||bot.y+bot.height>2000) bot.vy*=-1;
+
+    // Randomly mount bike
+    if(!bot.bike.mounted && Math.random()<0.001){ bot.bike.mounted=true; bot.bike.x=bot.x; bot.bike.y=bot.y; }
+    if(bot.bike.mounted){
+      bot.bike.x=bot.x; bot.bike.y=bot.y;
+      bot.bike.trail.push({x:bot.bike.x,y:bot.bike.y,time:Date.now()});
+      bot.bike.trail=bot.bike.trail.filter(t=>Date.now()-t.time<3000);
+    }
   });
 }
 
@@ -208,11 +217,32 @@ function updateDiscs(){
 }
 
 function checkCollisions(){
-  copBots.forEach(bot=>{
-    if(player.x+player.size/2>bot.x && player.x-player.size/2<bot.x+bot.width &&
-       player.y+player.size/2>bot.y && player.y-player.size/2<bot.y+bot.height){
-      player.alive=false; setTimeout(resetGame,1000);
+  bots.forEach(bot=>{
+    if(bot.bike.mounted && player.onBike){
+      if(player.x+bike.width/2>bot.bike.x && player.x-bike.width/2<bot.bike.x+bot.bike.width &&
+         player.y+bike.height/2>bot.bike.y && player.y-bike.height/2<bot.bike.y+bot.bike.height){
+        player.alive=false; spawnCopBike(bot.bike.x,bot.bike.y); setTimeout(resetGame,1000);
+      }
     }
+  });
+}
+
+function spawnCopBike(x,y){
+  copBikes.push({x:x,y:y,width:40,height:20,speed:3,trail:[],colors:['#00f','#f00']});
+}
+
+function drawCopBike(cop,camX,camY){
+  // Flashing gradient
+  const t=(Math.sin(Date.now()/200)*0.5+0.5);
+  const grad=ctx.createLinearGradient(cop.x-camX,cop.y-camY,cop.x+cop.width-camX,cop.y+cop.height-camY);
+  grad.addColorStop(0, `rgba(${Math.floor(255*t)},0,255,1)`);
+  grad.addColorStop(1, `rgba(0,${Math.floor(255*(1-t))},255,1)`);
+  ctx.fillStyle=grad; ctx.fillRect(cop.x-camX,cop.y-camY,cop.width,cop.height);
+
+  cop.trail.forEach(tl=>{
+    const age=(Date.now()-tl.time)/3000; if(age>1) return;
+    ctx.fillStyle=`rgba(0,255,255,${1-age})`;
+    ctx.fillRect(tl.x-camX-5,tl.y-camY-5,10,10);
   });
 }
 
@@ -231,19 +261,39 @@ function draw(){
     ctx.fillStyle=grad; ctx.fillRect(player.x-20-camX,player.y-20-camY,40,40);
   }
 
-  // Bike trail
+  // Player Bike trail
   if(player.onBike){
     bike.trail.forEach(t=>{
       const age=(Date.now()-t.time)/3000;
       ctx.fillStyle=`rgba(0,255,255,${1-age})`; ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
     });
-    ctx.fillStyle='cyan'; ctx.fillRect(bike.x-camX-bike.width/2,bike.y-camY-bike.height/2,bike.width,bike.height);
+    const grad=ctx.createLinearGradient(bike.x-camX,bike.y-camY,bike.x+bike.width-camX,bike.y+bike.height-camY);
+    grad.addColorStop(0,player.colors[0]); grad.addColorStop(1,player.colors[1]);
+    ctx.fillStyle=grad; ctx.fillRect(bike.x-camX-bike.width/2,bike.y-camY-bike.height/2,bike.width,bike.height);
   }
 
   // Bots
   bots.forEach(bot=>{
-    ctx.fillStyle=bot.color; ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height);
-    ctx.fillStyle='white'; ctx.font='12px monospace'; ctx.fillText(bot.name, bot.x-camX, bot.y-10-camY);
+    if(!bot.bike.mounted){
+      ctx.fillStyle='white'; ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height);
+      ctx.fillStyle='white'; ctx.font='12px monospace'; ctx.fillText(bot.name, bot.x-camX, bot.y-10-camY);
+    } else {
+      // Bot bike
+      bot.bike.trail.forEach(t=>{
+        const age=(Date.now()-t.time)/3000; if(age>1) return;
+        ctx.fillStyle=`rgba(255,0,255,${1-age})`; ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
+      });
+      const grad=ctx.createLinearGradient(bot.bike.x-camX,bot.bike.y-camY,bot.bike.x+bot.bike.width-camX,bot.bike.y+bot.bike.height-camY);
+      grad.addColorStop(0,bot.bike.colors[0]); grad.addColorStop(1,bot.bike.colors[1]);
+      ctx.fillStyle=grad; ctx.fillRect(bot.bike.x-camX,bot.bike.y-camY,bot.bike.width,bot.bike.height);
+    }
+  });
+
+  // Cop bikes
+  copBikes.forEach(cop=>{
+    cop.trail.push({x:cop.x,y:cop.y,time:Date.now()});
+    cop.trail=cop.trail.filter(t=>Date.now()-t.time<3000);
+    drawCopBike(cop,camX,camY);
   });
 
   // Discs
