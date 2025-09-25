@@ -7,6 +7,7 @@
 <style>
 html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:sans-serif;}
 canvas { display:block; background:#0f0f0f; }
+
 .menu, .pauseMenu {
   position:absolute; top:0; left:0; width:100%; height:100%;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
@@ -16,7 +17,17 @@ canvas { display:block; background:#0f0f0f; }
 .menu button { margin:10px; padding:15px 40px; font-size:20px; color:#0ff; background:none; border:2px solid #0ff; border-radius:10px; cursor:pointer; text-shadow:0 0 5px #0ff;}
 .menu button:hover { background:#0ff1; color:black; }
 .menu input { margin:5px; padding:5px; border-radius:5px; border:1px solid #0ff; background:black; color:#0ff; text-align:center; }
+
 .pauseMenu { display:none; flex-direction:column; text-align:center; }
+
+.mobileControls {
+  position:absolute; bottom:20px; left:0; width:100%; display:flex; justify-content:space-around; z-index:9;
+}
+.mobileControls button {
+  width:60px; height:60px; font-size:20px; border-radius:50%; border:none;
+  background:rgba(0,255,255,0.2); color:#0ff; backdrop-filter:blur(5px);
+}
+.mobileControls button:active { background:rgba(0,255,255,0.5); }
 </style>
 </head>
 <body>
@@ -43,33 +54,64 @@ canvas { display:block; background:#0f0f0f; }
 
 <canvas id="gameCanvas" width="900" height="600"></canvas>
 
+<!-- Mobile Controls -->
+<div class="mobileControls" id="mobileControls" style="display:none;">
+  <button id="upBtn">↑</button>
+  <button id="leftBtn">←</button>
+  <button id="downBtn">↓</button>
+  <button id="rightBtn">→</button>
+  <button id="bikeBtn">R</button>
+  <button id="fireBtn">•</button>
+</div>
+
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 const mainMenu = document.getElementById('mainMenu');
 const pauseMenu = document.getElementById('pauseMenu');
+const mobileControls = document.getElementById('mobileControls');
+
 const loginBtn = document.getElementById('loginBtn');
 const playBtn = document.getElementById('playBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const quitBtn = document.getElementById('quitBtn');
+
 const usernameInput = document.getElementById('username');
 const pinInput = document.getElementById('pin');
 const color1Input = document.getElementById('color1');
 const color2Input = document.getElementById('color2');
 
 let paused = false;
-const keys = {};
+let keys = {};
+let isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+if(isMobile) mobileControls.style.display = 'flex';
+
 document.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()]=true; });
 document.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') togglePause();
   if(e.key.toLowerCase()==='r') toggleBike();
 });
 
+function setupMobileButtons(){
+  document.getElementById('upBtn').addEventListener('touchstart',()=>keys['w']=true);
+  document.getElementById('upBtn').addEventListener('touchend',()=>keys['w']=false);
+  document.getElementById('downBtn').addEventListener('touchstart',()=>keys['s']=true);
+  document.getElementById('downBtn').addEventListener('touchend',()=>keys['s']=false);
+  document.getElementById('leftBtn').addEventListener('touchstart',()=>keys['a']=true);
+  document.getElementById('leftBtn').addEventListener('touchend',()=>keys['a']=false);
+  document.getElementById('rightBtn').addEventListener('touchstart',()=>keys['d']=true);
+  document.getElementById('rightBtn').addEventListener('touchend',()=>keys['d']=false);
+  document.getElementById('bikeBtn').addEventListener('touchstart',toggleBike);
+  // Fire button can be implemented later
+}
+if(isMobile) setupMobileButtons();
+
 const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2, alive:true, colors:['#00ffff','#ff00ff'] };
 const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
-const discs = [];
 const bots = [];
 const copBikes = [];
 
@@ -119,7 +161,6 @@ function toggleBike(){ if(!player.alive) return; player.onBike=!player.onBike; b
 function resetGame(){
   player.x=500; player.y=500; player.alive=true; player.onBike=false; bike.mounted=false; bike.trail=[];
   bots.length=0; copBikes.length=0; for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
-  discs.length=0;
 }
 
 function drawGrid(camX,camY){
