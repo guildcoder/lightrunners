@@ -1,1 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L I G H T R U N N E R S Prototype</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: black; }
+  canvas { display: block; background: #0f0f0f; }
+  /* Translucent mobile controls */
+  .joystick {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    bottom: 30px;
+    left: 30px;
+    touch-action: none;
+  }
+  .fireButton {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255,0,0,0.3);
+    bottom: 40px;
+    right: 30px;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="900" height="600"></canvas>
+<div class="joystick" id="joystick"></div>
+<div class="fireButton" id="fireButton"></div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// Player setup
+const player = {
+  x: canvas.width/2,
+  y: canvas.height/2,
+  width: 20,
+  height: 30,
+  speed: 2,
+  riding: false,
+  trail: [],
+  color1: '#00ffff', // gradient start
+  color2: '#ff00ff'  // gradient end
+};
+
+// Bots setup
+const bots = [{
+  x: 100, y:100, width:20, height:30, speed:1, dirX:1, dirY:0
+}];
+
+// Light discs
+const discs = [];
+
+// Movement & trail
+function updatePlayer() {
+  player.riding = keys['shift'] || false; // shift key toggles bike
+  const spd = player.riding ? 5 : 2;
+
+  if(keys['w'] || keys['arrowup']) player.y -= spd;
+  if(keys['s'] || keys['arrowdown']) player.y += spd;
+  if(keys['a'] || keys['arrowleft']) player.x -= spd;
+  if(keys['d'] || keys['arrowright']) player.x += spd;
+
+  // Add trail if riding
+  if(player.riding) {
+    player.trail.push({x: player.x + player.width/2, y: player.y + player.height/2, time: Date.now()});
+    // remove old trail (>3 seconds)
+    player.trail = player.trail.filter(t => Date.now() - t.time < 3000);
+  }
+}
+
+// Draw player
+function drawPlayer() {
+  // Gradient bike
+  const gradient = ctx.createLinearGradient(player.x, player.y, player.x + player.width, player.y + player.height);
+  gradient.addColorStop(0, player.color1);
+  gradient.addColorStop(1, player.color2);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(player.x, player.y, player.width, player.height);
+
+  // Draw trail
+  player.trail.forEach(t => {
+    const age = (Date.now() - t.time)/3000;
+    ctx.fillStyle = `rgba(0,255,255,${1-age})`;
+    ctx.fillRect(t.x-5, t.y-5, 10, 10);
+  });
+}
+
+// Update bots
+function updateBots() {
+  bots.forEach(bot => {
+    bot.x += bot.dirX * bot.speed;
+    bot.y += bot.dirY * bot.speed;
+
+    // Bounce on walls
+    if(bot.x < 0 || bot.x + bot.width > canvas.width) bot.dirX *= -1;
+    if(bot.y < 0 || bot.y + bot.height > canvas.height) bot.dirY *= -1;
+  });
+}
+
+// Draw bots
+function drawBots() {
+  ctx.fillStyle = 'red';
+  bots.forEach(bot => ctx.fillRect(bot.x, bot.y, bot.width, bot.height));
+}
+
+// Main loop
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  updatePlayer();
+  updateBots();
+  drawPlayer();
+  drawBots();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
 
