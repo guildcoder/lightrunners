@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>L I G H T R U N N E R S Core Prototype</title>
+<title>L I G H T R U N N E R S</title>
 <style>
 html, body { margin:0; padding:0; overflow:hidden; background:black; }
 canvas { display:block; background:#0f0f0f; }
@@ -34,14 +34,14 @@ document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 // --- Player & Bike ---
-const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2 };
+const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2, alive:true };
 const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
 
 // --- Bots ---
-const bots = [
-  {x:300, y:300, width:20, height:30, speed:1, dirX:1, dirY:0, state:'neutral', aggroTime:0}
-];
+const bots = [];
 const copBots = [];
+function spawnBot(x,y){ bots.push({x:x,y:y,width:20,height:30,speed:1,dirX:1,dirY:0,state:'neutral',aggroTime:0}); }
+for(let i=0;i<5;i++) spawnBot(Math.random()*1000,Math.random()*1000);
 
 // --- Discs ---
 const discs = [];
@@ -73,6 +73,7 @@ mountButton.addEventListener('touchstart', toggleBike);
 document.addEventListener('keydown', e => { if(e.key.toLowerCase()==='r') toggleBike(); });
 
 function toggleBike(){
+  if(!player.alive) return;
   player.onBike = !player.onBike;
   bike.mounted = player.onBike;
   if(bike.mounted){ bike.x = player.x; bike.y = player.y; }
@@ -93,6 +94,7 @@ function drawGrid(camX, camY){
 
 // --- Update Player & Bike ---
 function updatePlayer(){
+  if(!player.alive) return;
   const spd = player.onBike ? bike.speed : player.speed;
 
   // Keyboard movement
@@ -138,7 +140,7 @@ function updateBots(){
       if(Date.now()>bot.aggroTime) bot.state='neutral';
     }
   });
-  // Cop bots
+
   copBots.forEach(bot=>{
     const dx=player.x-bot.x;
     const dy=player.y-bot.y;
@@ -156,27 +158,54 @@ function updateDiscs(){
     d.y += Math.sin(d.angle)*d.speed;
 
     // Hit bots
-    bots.forEach(bot=>{
+    for(let j=bots.length-1;j>=0;j--){
+      const bot=bots[j];
       if(d.x>bot.x && d.x<bot.x+bot.width && d.y>bot.y && d.y<bot.y+bot.height){
         bot.state='aggro';
         bot.aggroTime = Date.now()+5000;
         discs.splice(i,1);
+        // Spawn a cop bot when bot "dies"
+        copBots.push({x:bot.x,y:bot.y,width:20,height:30,speed:2});
+        bots.splice(j,1);
+        break;
       }
-    });
+    }
     if(Date.now()-d.time>3000) discs.splice(i,1);
   }
 }
 
+// --- Check collisions & death ---
+function checkCollisions(){
+  copBots.forEach(bot=>{
+    if(player.x+player.size/2>bot.x && player.x-player.size/2<bot.x+bot.width &&
+       player.y+player.size/2>bot.y && player.y-player.size/2<bot.y+bot.height){
+      player.alive=false;
+      setTimeout(respawnPlayer,1000);
+    }
+  });
+}
+
+// --- Respawn ---
+function respawnPlayer(){
+  player.x = 500; player.y = 1000; player.alive=true;
+  player.onBike=false;
+  bike.mounted=false;
+  bike.trail=[];
+}
+
 // --- Draw ---
 function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
   const camX = player.x - canvas.width/2;
   const camY = player.y - canvas.height/2;
 
   drawGrid(camX, camY);
 
   // Player
-  ctx.fillStyle='white';
-  ctx.fillRect(player.x-camX-player.size/2, player.y-camY-player.size/2, player.size, player.size);
+  if(player.alive){
+    ctx.fillStyle='white';
+    ctx.fillRect(player.x-camX-player.size/2, player.y-camY-player.size/2, player.size, player.size);
+  }
 
   // Bike & trail
   if(player.onBike){
@@ -200,11 +229,12 @@ function draw(){
   discs.forEach(d=>ctx.fillRect(d.x-camX-5, d.y-camY-5, 10,10));
 }
 
-// --- Loop ---
+// --- Main Loop ---
 function loop(){
   updatePlayer();
   updateBots();
   updateDiscs();
+  checkCollisions();
   draw();
   requestAnimationFrame(loop);
 }
