@@ -3,23 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>L I G H T R U N N E R S Full Prototype</title>
+<title>L I G H T R U N N E R S Core Prototype</title>
 <style>
-html, body { margin: 0; padding: 0; overflow: hidden; background: black; }
-canvas { display: block; background: #0f0f0f; }
+html, body { margin:0; padding:0; overflow:hidden; background:black; }
+canvas { display:block; background:#0f0f0f; }
 
 .joystick, .fireButton, .mountButton {
-  position: absolute;
-  touch-action: none;
-  user-select: none;
+  position:absolute; touch-action:none; user-select:none;
 }
 .joystick { width:120px; height:120px; border-radius:50%; background: rgba(255,255,255,0.2); bottom:30px; left:30px;}
 .fireButton { width:80px; height:80px; border-radius:50%; background: rgba(255,0,0,0.3); bottom:40px; right:30px;}
 .mountButton { width:120px; height:50px; border-radius:10px; background: rgba(0,255,255,0.3); bottom:150px; right:30px; text-align:center; line-height:50px; font-weight:bold; color:white; font-family:sans-serif;}
-
-@media (pointer: fine) { 
-  .joystick, .fireButton, .mountButton { display:none; } 
-}
+@media (pointer: fine) { .joystick, .fireButton, .mountButton { display:none; } }
 </style>
 </head>
 <body>
@@ -27,7 +22,7 @@ canvas { display: block; background: #0f0f0f; }
 <canvas id="gameCanvas" width="900" height="600"></canvas>
 <div class="joystick" id="joystick"></div>
 <div class="fireButton" id="fireButton"></div>
-<div class="mountButton" id="mountButton">Mount/Dismount</div>
+<div class="mountButton" id="mountButton">Get In/Out</div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
@@ -35,12 +30,12 @@ const ctx = canvas.getContext('2d');
 
 // --- Keyboard ---
 const keys = {};
-document.addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup', e=>keys[e.key.toLowerCase()]=false);
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// --- Player and Bike ---
-const player = { x:500, y:500, width:20, height:30, speed:2, onBike:false, color1:'#ffffff', color2:'#ffffff', direction:-Math.PI/2 };
-const bike = { x:500, y:500, width:20, height:30, speed:5, trail:[], mounted:false };
+// --- Player & Bike ---
+const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2 };
+const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
 
 // --- Bots ---
 const bots = [
@@ -60,23 +55,22 @@ let touchDir = { x:0, y:0 };
 joystick.addEventListener('touchstart', handleTouch);
 joystick.addEventListener('touchmove', handleTouch);
 joystick.addEventListener('touchend', ()=>touchDir={x:0,y:0});
-
 function handleTouch(e){
   const touch = e.touches[0];
   const rect = joystick.getBoundingClientRect();
   const cx = rect.left + rect.width/2;
   const cy = rect.top + rect.height/2;
-  touchDir.x = Math.max(-1, Math.min(1, (touch.clientX - cx)/60));
-  touchDir.y = Math.max(-1, Math.min(1, (touch.clientY - cy)/60));
+  touchDir.x = Math.max(-1, Math.min(1, (touch.clientX-cx)/60));
+  touchDir.y = Math.max(-1, Math.min(1, (touch.clientY-cy)/60));
   e.preventDefault();
 }
 
-let firePressed=false;
+let firePressed = false;
 fireButton.addEventListener('touchstart', ()=>firePressed=true);
 fireButton.addEventListener('touchend', ()=>firePressed=false);
 
-mountButton.addEventListener('click', toggleBike);
 mountButton.addEventListener('touchstart', toggleBike);
+document.addEventListener('keydown', e => { if(e.key.toLowerCase()==='r') toggleBike(); });
 
 function toggleBike(){
   player.onBike = !player.onBike;
@@ -84,7 +78,20 @@ function toggleBike(){
   if(bike.mounted){ bike.x = player.x; bike.y = player.y; }
 }
 
-// --- Update Player ---
+// --- Grid ---
+function drawGrid(camX, camY){
+  const gridSize = 50;
+  ctx.strokeStyle = 'rgba(0,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for(let x=-camX%gridSize;x<canvas.width;x+=gridSize){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  }
+  for(let y=-camY%gridSize;y<canvas.height;y+=gridSize){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+  }
+}
+
+// --- Update Player & Bike ---
 function updatePlayer(){
   const spd = player.onBike ? bike.speed : player.speed;
 
@@ -99,17 +106,17 @@ function updatePlayer(){
   player.y += touchDir.y*spd;
   if(touchDir.x!==0 || touchDir.y!==0) player.direction=Math.atan2(touchDir.y,touchDir.x);
 
-  // Bike trail
+  // Bike updates
   if(player.onBike){
     bike.x = player.x;
     bike.y = player.y;
-    bike.trail.push({x: bike.x+bike.width/2, y: bike.y+bike.height/2, time: Date.now()});
+    bike.trail.push({x: bike.x, y: bike.y, time:Date.now()});
     bike.trail = bike.trail.filter(t=>Date.now()-t.time<3000);
   }
 
   // Fire discs
   if(firePressed && player.onBike){
-    discs.push({ x:bike.x+bike.width/2, y:bike.y+bike.height/2, angle:player.direction, speed:8, time:Date.now() });
+    discs.push({x:bike.x, y:bike.y, angle:player.direction, speed:8, time:Date.now()});
     firePressed=false;
   }
 }
@@ -123,20 +130,19 @@ function updateBots(){
       if(bot.x<0||bot.x+bot.width>2000) bot.dirX*=-1;
       if(bot.y<0||bot.y+bot.height>2000) bot.dirY*=-1;
     } else if(bot.state==='aggro'){
-      const dx = player.x - bot.x;
-      const dy = player.y - bot.y;
-      const dist = Math.hypot(dx,dy);
+      const dx=player.x-bot.x;
+      const dy=player.y-bot.y;
+      const dist=Math.hypot(dx,dy);
       bot.x += dx/dist*bot.speed*1.5;
       bot.y += dy/dist*bot.speed*1.5;
-      if(Date.now() > bot.aggroTime) bot.state='neutral';
+      if(Date.now()>bot.aggroTime) bot.state='neutral';
     }
   });
-
-  // Cop bots chase player
+  // Cop bots
   copBots.forEach(bot=>{
-    const dx = player.x - bot.x;
-    const dy = player.y - bot.y;
-    const dist = Math.hypot(dx,dy);
+    const dx=player.x-bot.x;
+    const dy=player.y-bot.y;
+    const dist=Math.hypot(dx,dy);
     bot.x += dx/dist*bot.speed*2;
     bot.y += dy/dist*bot.speed*2;
   });
@@ -157,31 +163,30 @@ function updateDiscs(){
         discs.splice(i,1);
       }
     });
-
     if(Date.now()-d.time>3000) discs.splice(i,1);
   }
 }
 
 // --- Draw ---
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
   const camX = player.x - canvas.width/2;
   const camY = player.y - canvas.height/2;
 
+  drawGrid(camX, camY);
+
   // Player
   ctx.fillStyle='white';
-  ctx.fillRect(player.x-camX-10, player.y-camY-10, player.width, player.height);
+  ctx.fillRect(player.x-camX-player.size/2, player.y-camY-player.size/2, player.size, player.size);
 
-  // Bike trail
+  // Bike & trail
   if(player.onBike){
     bike.trail.forEach(t=>{
       const age=(Date.now()-t.time)/3000;
       ctx.fillStyle=`rgba(0,255,255,${1-age})`;
       ctx.fillRect(t.x-camX-5, t.y-camY-5, 10,10);
     });
-    // Draw bike
     ctx.fillStyle='cyan';
-    ctx.fillRect(bike.x-camX, bike.y-camY, bike.width, bike.height);
+    ctx.fillRect(bike.x-camX-bike.width/2, bike.y-camY-bike.height/2, bike.width, bike.height);
   }
 
   // Bots
@@ -192,10 +197,10 @@ function draw(){
 
   // Discs
   ctx.fillStyle='yellow';
-  discs.forEach(d=>ctx.fillRect(d.x-camX-5,d.y-camY-5,10,10));
+  discs.forEach(d=>ctx.fillRect(d.x-camX-5, d.y-camY-5, 10,10));
 }
 
-// --- Main Loop ---
+// --- Loop ---
 function loop(){
   updatePlayer();
   updateBots();
@@ -203,7 +208,6 @@ function loop(){
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
 </script>
 </body>
