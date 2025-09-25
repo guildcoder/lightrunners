@@ -7,28 +7,16 @@
 <style>
 html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:sans-serif;}
 canvas { display:block; background:#0f0f0f; }
-
-.menu, .customizeMenu {
+.menu, .pauseMenu {
   position:absolute; top:0; left:0; width:100%; height:100%;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
   background:rgba(0,0,0,0.85); color:white; z-index:10;
 }
-
-.menu h1 {
-  font-size:48px; color:#0ff; text-shadow:0 0 10px #0ff,0 0 20px #0ff;
-  margin-bottom:40px;
-}
-
-.menu button, .customizeMenu button {
-  margin:10px; padding:15px 40px; font-size:20px;
-  color:#0ff; background:none; border:2px solid #0ff; border-radius:10px;
-  cursor:pointer; text-shadow:0 0 5px #0ff;
-}
-.menu button:hover, .customizeMenu button:hover { background:#0ff1; color:black; }
-
-.customizeMenu { display:none; flex-direction:column; }
-
-.customizeMenu input { margin:5px; width:120px; text-align:center; padding:5px; border-radius:5px; border:1px solid #0ff; background:black; color:#0ff; }
+.menu h1 { font-size:48px; color:#0ff; text-shadow:0 0 10px #0ff,0 0 20px #0ff; margin-bottom:40px; }
+.menu button { margin:10px; padding:15px 40px; font-size:20px; color:#0ff; background:none; border:2px solid #0ff; border-radius:10px; cursor:pointer; text-shadow:0 0 5px #0ff;}
+.menu button:hover { background:#0ff1; color:black; }
+.menu input { margin:5px; padding:5px; border-radius:5px; border:1px solid #0ff; background:black; color:#0ff; text-align:center; }
+.pauseMenu { display:none; flex-direction:column; text-align:center; }
 </style>
 </head>
 <body>
@@ -38,18 +26,21 @@ canvas { display:block; background:#0f0f0f; }
   <h1>L I G H T R U N N E R S</h1>
   <input type="text" id="username" placeholder="Username">
   <input type="password" id="pin" placeholder="PIN">
-  <button id="loginBtn">Login / Register</button>
-  <button id="playBtn">Play</button>
-  <button id="customizeBtn">Customize</button>
-</div>
-
-<!-- Customize Menu -->
-<div class="customizeMenu" id="customMenu">
-  <h2>Customize Bike & Player</h2>
   <label>Color 1: <input type="color" id="color1" value="#00ffff"></label>
   <label>Color 2: <input type="color" id="color2" value="#ff00ff"></label>
-  <button id="saveCustomize">Save</button>
-  <button id="backMenu">Back</button>
+  <button id="loginBtn">Register / Login</button>
+  <button id="playBtn">Play</button>
+</div>
+
+<!-- Pause Menu -->
+<div class="pauseMenu" id="pauseMenu">
+  <h2>PAUSED</h2>
+  <p>Controls:</p>
+  <p>WASD / Arrows: Move</p>
+  <p>R: Get In/Out of Bike</p>
+  <p>Space: Fire (desktop)</p>
+  <button id="resumeBtn">Resume</button>
+  <button id="quitBtn">Quit to Main Menu</button>
 </div>
 
 <canvas id="gameCanvas" width="900" height="600"></canvas>
@@ -60,137 +51,136 @@ const ctx = canvas.getContext('2d');
 
 // --- UI Elements ---
 const mainMenu = document.getElementById('mainMenu');
-const customMenu = document.getElementById('customMenu');
+const pauseMenu = document.getElementById('pauseMenu');
 const loginBtn = document.getElementById('loginBtn');
 const playBtn = document.getElementById('playBtn');
-const customizeBtn = document.getElementById('customizeBtn');
-const backMenu = document.getElementById('backMenu');
-const saveCustomize = document.getElementById('saveCustomize');
-const color1Input = document.getElementById('color1');
-const color2Input = document.getElementById('color2');
+const resumeBtn = document.getElementById('resumeBtn');
+const quitBtn = document.getElementById('quitBtn');
 const usernameInput = document.getElementById('username');
 const pinInput = document.getElementById('pin');
+const color1Input = document.getElementById('color1');
+const color2Input = document.getElementById('color2');
+
+let paused = false;
 
 // --- Keyboard ---
 const keys = {};
-document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+document.addEventListener('keydown', e => keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()]=false);
+document.addEventListener('keydown', e => { if(e.key==='Escape') togglePause(); });
 
-// --- Mobile controls ---
+// --- Mobile buttons ---
 const joystick = document.createElement('div');
 joystick.style.cssText="position:absolute;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.2);bottom:30px;left:30px;";
 document.body.appendChild(joystick);
-
 const fireButton = document.createElement('div');
 fireButton.style.cssText="position:absolute;width:80px;height:80px;border-radius:50%;background:rgba(255,0,0,0.3);bottom:40px;right:30px;";
 document.body.appendChild(fireButton);
-
 const mountButton = document.createElement('div');
 mountButton.style.cssText="position:absolute;width:120px;height:50px;border-radius:10px;background:rgba(0,255,255,0.3);bottom:150px;right:30px;color:white;text-align:center;line-height:50px;font-weight:bold;cursor:pointer;";
 mountButton.textContent="Get In/Out";
 document.body.appendChild(mountButton);
 
-// --- Player & Bike ---
-const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2, alive:true, colors:['#00ffff','#ff00ff'] };
-const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
-
-// --- Bots ---
-const bots = [];
-const copBots = [];
-function spawnBot(x,y){ bots.push({x:x,y:y,width:20,height:30,speed:1,dirX:1,dirY:0,state:'neutral',aggroTime:0}); }
-for(let i=0;i<5;i++) spawnBot(Math.random()*1000,Math.random()*1000);
-
-// --- Discs ---
-const discs = [];
-
-// --- Mobile touch ---
 let touchDir={x:0,y:0};
 joystick.addEventListener('touchstart',handleTouch);
 joystick.addEventListener('touchmove',handleTouch);
 joystick.addEventListener('touchend',()=>touchDir={x:0,y:0});
-function handleTouch(e){
-  const touch = e.touches[0];
-  const rect = joystick.getBoundingClientRect();
-  const cx = rect.left + rect.width/2;
-  const cy = rect.top + rect.height/2;
-  touchDir.x = Math.max(-1,Math.min(1,(touch.clientX-cx)/60));
-  touchDir.y = Math.max(-1,Math.min(1,(touch.clientY-cy)/60));
-  e.preventDefault();
-}
-
-let firePressed=false;
 fireButton.addEventListener('touchstart',()=>firePressed=true);
 fireButton.addEventListener('touchend',()=>firePressed=false);
 mountButton.addEventListener('touchstart',toggleBike);
-document.addEventListener('keydown', e => { if(e.key.toLowerCase()==='r') toggleBike(); });
 
-function toggleBike(){
-  if(!player.alive) return;
-  player.onBike=!player.onBike;
-  bike.mounted=player.onBike;
-  if(bike.mounted){ bike.x=player.x; bike.y=player.y; }
+function handleTouch(e){
+  const touch=e.touches[0];
+  const rect=joystick.getBoundingClientRect();
+  const cx=rect.left+rect.width/2;
+  const cy=rect.top+rect.height/2;
+  touchDir.x=Math.max(-1,Math.min(1,(touch.clientX-cx)/60));
+  touchDir.y=Math.max(-1,Math.min(1,(touch.clientY-cy)/60));
+  e.preventDefault();
 }
 
-// --- Menu buttons ---
-loginBtn.addEventListener('click', ()=>{
+// --- Player & Bike ---
+const player = { x:500, y:500, size:20, speed:2, onBike:false, direction:-Math.PI/2, alive:true, colors:['#00ffff','#ff00ff'] };
+const bike = { x:500, y:500, width:40, height:20, speed:5, trail:[], mounted:false };
+
+// --- Discs ---
+const discs = [];
+let firePressed=false;
+
+// --- Bots ---
+const bots = [];
+const copBots = [];
+
+function spawnBot(x,y){
+  const colors = ['#ff00ff','#0ff','#ff0','#f0f','#0f0','#f00','#0ff','#0f0'];
+  const names = ['ByteRider','NeonPulse','GlitchShadow','LaserFang','CyberStorm','ElectroVex','DataPhantom','SynthWave','PixelKnight','QuantumFlux','BuzzCore'];
+  bots.push({
+    x:x, y:y, width:20, height:30,
+    vx:(Math.random()*2-1)*1.5, vy:(Math.random()*2-1)*1.5,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    name: names[Math.floor(Math.random()*names.length)],
+    state:'neutral', aggroTime:0
+  });
+}
+for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
+
+// --- Menu Actions ---
+loginBtn.addEventListener('click',()=>{
   const username=usernameInput.value;
   const pin=pinInput.value;
   if(!username||!pin){ alert('Enter username & PIN'); return; }
+  player.colors[0]=color1Input.value;
+  player.colors[1]=color2Input.value;
   localStorage.setItem('lr_username',username);
   localStorage.setItem('lr_pin',pin);
-  alert('Logged in as '+username);
+  localStorage.setItem('lr_color1',player.colors[0]);
+  localStorage.setItem('lr_color2',player.colors[1]);
+  alert('Registered / logged in as '+username);
 });
 
-playBtn.addEventListener('click', ()=>{
+playBtn.addEventListener('click',()=>{
   const savedUsername = localStorage.getItem('lr_username');
   const savedPin = localStorage.getItem('lr_pin');
-  if(!savedUsername || !savedPin){ alert('Please login/register first'); return; }
+  if(!savedUsername||!savedPin){ alert('Please register first'); return; }
+  player.colors[0]=localStorage.getItem('lr_color1')||player.colors[0];
+  player.colors[1]=localStorage.getItem('lr_color2')||player.colors[1];
   mainMenu.style.display='none';
   startGame();
 });
 
-customizeBtn.addEventListener('click', ()=>{
-  mainMenu.style.display='none';
-  customMenu.style.display='flex';
-  color1Input.value = player.colors[0];
-  color2Input.value = player.colors[1];
-});
-
-saveCustomize.addEventListener('click', ()=>{
-  player.colors[0] = color1Input.value;
-  player.colors[1] = color2Input.value;
-  customMenu.style.display='none';
+resumeBtn.addEventListener('click',()=>{ paused=false; pauseMenu.style.display='none'; });
+quitBtn.addEventListener('click',()=>{
+  paused=false; pauseMenu.style.display='none';
   mainMenu.style.display='flex';
+  resetGame();
 });
 
-backMenu.addEventListener('click', ()=>{
-  customMenu.style.display='none';
-  mainMenu.style.display='flex';
-});
+// --- Game Logic ---
+function togglePause(){ paused=!paused; pauseMenu.style.display=paused?'flex':'none'; }
 
-// --- Game Functions ---
+function toggleBike(){ if(!player.alive) return; player.onBike=!player.onBike; bike.mounted=player.onBike; if(bike.mounted){ bike.x=player.x; bike.y=player.y; } }
+
+function resetGame(){
+  player.x=500; player.y=500; player.alive=true; player.onBike=false; bike.mounted=false; bike.trail=[];
+  bots.length=0; copBots.length=0; for(let i=0;i<10;i++) spawnBot(Math.random()*1000,Math.random()*1000);
+  discs.length=0;
+}
+
+// --- Updates & Drawing ---
 function drawGrid(camX,camY){
-  const gridSize=50;
-  ctx.strokeStyle='rgba(0,255,255,0.1)';
-  ctx.lineWidth=1;
-  for(let x=-camX%gridSize;x<canvas.width;x+=gridSize){
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
-  }
-  for(let y=-camY%gridSize;y<canvas.height;y+=gridSize){
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
-  }
+  const gridSize=50; ctx.strokeStyle='rgba(0,255,255,0.1)'; ctx.lineWidth=1;
+  for(let x=-camX%gridSize;x<canvas.width;x+=gridSize){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+  for(let y=-camY%gridSize;y<canvas.height;y+=gridSize){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
 }
 
 function updatePlayer(){
-  if(!player.alive) return;
+  if(!player.alive||paused) return;
   const spd=player.onBike?bike.speed:player.speed;
   if(keys['w']||keys['arrowup']){ player.y-=spd; player.direction=-Math.PI/2; }
   if(keys['s']||keys['arrowdown']){ player.y+=spd; player.direction=Math.PI/2; }
   if(keys['a']||keys['arrowleft']){ player.x-=spd; player.direction=Math.PI; }
   if(keys['d']||keys['arrowright']){ player.x+=spd; player.direction=0; }
-
-  player.x += touchDir.x*spd;
-  player.y += touchDir.y*spd;
+  player.x += touchDir.x*spd; player.y += touchDir.y*spd;
   if(touchDir.x!==0||touchDir.y!==0) player.direction=Math.atan2(touchDir.y,touchDir.x);
 
   if(player.onBike){
@@ -204,38 +194,15 @@ function updatePlayer(){
 
 function updateBots(){
   bots.forEach(bot=>{
-    if(bot.state==='neutral'){
-      bot.x+=bot.dirX*bot.speed;
-      bot.y+=bot.dirY*bot.speed;
-      if(bot.x<0||bot.x+bot.width>2000) bot.dirX*=-1;
-      if(bot.y<0||bot.y+bot.height>2000) bot.dirY*=-1;
-    } else if(bot.state==='aggro'){
-      const dx=player.x-bot.x; const dy=player.y-bot.y; const dist=Math.hypot(dx,dy);
-      bot.x+=dx/dist*bot.speed*1.5; bot.y+=dy/dist*bot.speed*1.5;
-      if(Date.now()>bot.aggroTime) bot.state='neutral';
-    }
-  });
-
-  copBots.forEach(bot=>{
-    const dx=player.x-bot.x; const dy=player.y-bot.y; const dist=Math.hypot(dx,dy);
-    bot.x+=dx/dist*bot.speed*2; bot.y+=dy/dist*bot.speed*2;
+    bot.x+=bot.vx; bot.y+=bot.vy;
+    if(bot.x<0||bot.x+bot.width>2000) bot.vx*=-1;
+    if(bot.y<0||bot.y+bot.height>2000) bot.vy*=-1;
   });
 }
 
 function updateDiscs(){
   for(let i=discs.length-1;i>=0;i--){
-    const d=discs[i];
-    d.x+=Math.cos(d.angle)*d.speed; d.y+=Math.sin(d.angle)*d.speed;
-
-    for(let j=bots.length-1;j>=0;j--){
-      const bot=bots[j];
-      if(d.x>bot.x&&d.x<bot.x+bot.width&&d.y>bot.y&&d.y<bot.y+bot.height){
-        bot.state='aggro'; bot.aggroTime=Date.now()+5000;
-        discs.splice(i,1);
-        copBots.push({x:bot.x,y:bot.y,width:20,height:30,speed:2});
-        bots.splice(j,1); break;
-      }
-    }
+    const d=discs[i]; d.x+=Math.cos(d.angle)*d.speed; d.y+=Math.sin(d.angle)*d.speed;
     if(Date.now()-d.time>3000) discs.splice(i,1);
   }
 }
@@ -244,12 +211,10 @@ function checkCollisions(){
   copBots.forEach(bot=>{
     if(player.x+player.size/2>bot.x && player.x-player.size/2<bot.x+bot.width &&
        player.y+player.size/2>bot.y && player.y-player.size/2<bot.y+bot.height){
-      player.alive=false; setTimeout(respawnPlayer,1000);
+      player.alive=false; setTimeout(resetGame,1000);
     }
   });
 }
-
-function respawnPlayer(){ player.x=500; player.y=1000; player.alive=true; player.onBike=false; bike.mounted=false; bike.trail=[]; }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -258,39 +223,45 @@ function draw(){
 
   drawGrid(camX,camY);
 
+  // Player
   if(player.alive){
     const grad=ctx.createLinearGradient(player.x-20-camX,player.y-20-camY,player.x+20-camX,player.y+20-camY);
     grad.addColorStop(0,player.colors[0]);
     grad.addColorStop(1,player.colors[1]);
-    ctx.fillStyle=grad;
-    ctx.fillRect(player.x-20-camX,player.y-20-camY,40,40);
+    ctx.fillStyle=grad; ctx.fillRect(player.x-20-camX,player.y-20-camY,40,40);
   }
 
+  // Bike trail
   if(player.onBike){
     bike.trail.forEach(t=>{
       const age=(Date.now()-t.time)/3000;
-      ctx.fillStyle=`rgba(0,255,255,${1-age})`;
-      ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
+      ctx.fillStyle=`rgba(0,255,255,${1-age})`; ctx.fillRect(t.x-camX-5,t.y-camY-5,10,10);
     });
-    ctx.fillStyle='cyan';
-    ctx.fillRect(bike.x-camX-bike.width/2,bike.y-camY-bike.height/2,bike.width,bike.height);
+    ctx.fillStyle='cyan'; ctx.fillRect(bike.x-camX-bike.width/2,bike.y-camY-bike.height/2,bike.width,bike.height);
   }
 
-  ctx.fillStyle='red';
-  bots.forEach(bot=>ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height));
-  ctx.fillStyle='orange';
-  copBots.forEach(bot=>ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height));
+  // Bots
+  bots.forEach(bot=>{
+    ctx.fillStyle=bot.color; ctx.fillRect(bot.x-camX,bot.y-camY,bot.width,bot.height);
+    ctx.fillStyle='white'; ctx.font='12px monospace'; ctx.fillText(bot.name, bot.x-camX, bot.y-10-camY);
+  });
 
-  ctx.fillStyle='yellow';
-  discs.forEach(d=>ctx.fillRect(d.x-camX-5,d.y-camY-5,10,10));
+  // Discs
+  ctx.fillStyle='yellow'; discs.forEach(d=>ctx.fillRect(d.x-camX-5,d.y-camY-5,10,10));
+
+  // Fire instruction
+  ctx.fillStyle='rgba(255,255,0,0.7)'; ctx.font='14px monospace';
+  ctx.fillText('Space = Fire', 10, 20);
+
+  // Pause overlay
+  if(paused){ ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle='white';
+    ctx.font='24px monospace'; ctx.fillText('PAUSED',canvas.width/2-50,canvas.height/2-60); }
 }
 
-function gameLoop(){
-  updatePlayer(); updateBots(); updateDiscs(); checkCollisions(); draw();
-  requestAnimationFrame(gameLoop);
-}
+function gameLoop(){ if(!paused){ updatePlayer(); updateBots(); updateDiscs(); checkCollisions(); } draw(); requestAnimationFrame(gameLoop); }
 
 function startGame(){ gameLoop(); }
+
 </script>
 </body>
 </html>
